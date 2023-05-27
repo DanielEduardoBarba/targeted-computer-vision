@@ -1,16 +1,20 @@
 import cv2
 import time
+import requests
+import json
 
+with open("./cam_data.json") as file:
+    cam_config = json.load(file)
 
 # Define the lower and upper boundaries of the yellow color in HSV
-color_lower = (10, 100, 100)
-color_upper = (30, 255, 255)
+color_lower = (45, 50, 50)
+color_upper = (65, 255, 255)
 
 # Start capturing video from the default webcam
 cap = cv2.VideoCapture(0)
 
 while True:
-    time.sleep(1)
+    # time.sleep(1)
     # Read a frame from the video stream
     ret, frame = cap.read()
 
@@ -39,9 +43,20 @@ while True:
         # Get the bounding rectangle of the largest contour
         x, y, w, h = cv2.boundingRect(largest_contour)
 
-        if w > 100 and h > 100:
+        if w > 50 and h > 50:
             # Draw a rectangle around the detected object
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            centerX = x+(w/2)
+            centerY = y+(h/2)
+
+            if centerX > 300:
+                print("RIGHT")
+                response = requests.post("http://localhost:4040",json={"sig1":centerY}, headers={"Content-Type": "application/json"})
+                print(response)
+            if centerX < 300:
+                print("LEFT")
+
 
     # Display the original frame and the mask
     cv2.imshow("Frame", frame)
