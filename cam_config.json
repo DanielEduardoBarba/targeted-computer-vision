@@ -1,0 +1,9 @@
+{
+    "machines": [
+        {"name":"Haas VF2",
+        "id":"nskqBui23ijeh24",
+        "rtsp":"rtsp://admin:admin@192.168.0.200/11", 
+        "detect_boundary":[250,250,500,500],
+        "minimum_size_detect":[50,50]}
+    ]
+}
