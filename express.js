@@ -12,14 +12,27 @@ app.get("/",(req,res)=>{
     console.log("API pinged...")
 })
 
-app.post("/",(req,res)=>{
-    const {sig1} = req.body
+const pretend_db={
+    registered_motherboard:"/6M9Y362/CN129635AF01A3/",
+    registered_cameras:[
+        "rtsp://admin:admin@192.168.0.200/11",
+        "rtsp://admin:admin@192.168.0.200/11"]
+}
 
-    console.log("Sig1: ", sig1)
+app.get("/check_license/",(req,res)=>{
+        const mid=req.body.mid
+        const cip=req.body.cip
 
-    res.send({response:"OK!"})
+        console.log("Recieved: ", req.body)
+
+        if(mid==pretend_db.registered_motherboard && pretend_db.registered_cameras.includes(cip) ){
+            res.status(200).send({license:"valid",response:"OK!"})
+        }else{
+            res.status(200).send({license:"invalid",response:"OK!"})
+        }
+       
     
-    console.log("API POST route pinged...")
+    console.log("API verify route pinged...")
 })
 
 app.listen(PORT, ()=>{
