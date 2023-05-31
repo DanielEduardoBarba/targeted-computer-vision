@@ -71,20 +71,21 @@ while True:
         break
 
 
-    masks=[] #BGR
-
     # Create a color specific mask to extract only BGR color pixels
     b = cam_config["blue_bounds"]
     g = cam_config["green_bounds"]
     r = cam_config["red_bounds"]
+    masks=[] #BGR
     masks.append(cv2.inRange(frame, (b[0], b[1], b[2]), (b[3], b[4], b[5]))) #Blue
     masks.append(cv2.inRange(frame, (g[0], g[1], g[2]), (g[3], g[4], g[5]))) #Green
     masks.append(cv2.inRange(frame, (r[0], r[1], r[2]), (r[3], r[4], r[5]))) #Red
 
 
+    #render machine boundary boxes for machins assigned to this camera
     for machine in cam_config["machines"]:
-        x1,y1,x2,y2 = machine["detect_boundary"]
-        boxNtag(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (100,255,100))
+        if machine["assigned_cam"]==cameraIP:
+            x1,y1,x2,y2 = machine["detect_boundary"]
+            boxNtag(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (100,255,100))
 
 
     #check all 3 colors of BGR spectrum
