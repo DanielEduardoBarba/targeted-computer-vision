@@ -12,15 +12,15 @@ with open("./cam_config.json") as file:
 subprocesses = []
 
 # Function to create a subprocess
-def create_subprocess(cameraIP):
+def create_subprocess(camera):
     # Command to execute the subprocess script
-    command = ["python3", "cam_supervisor.py", cameraIP]
+    command = ["python3", "cam_supervisor.py", json.dumps(camera)]
 
     # Create the subprocess and store the process object
     process = subprocess.Popen(command)
     subprocesses.append(process)
 
-    print("Running: ", cameraIP)
+    print("Running: ", camera["ip"])
 
 # Function to terminate all subprocesses
 def terminate_subprocesses():
@@ -37,8 +37,8 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 #run all subprocesses for each camera
-for cameraIP in cam_config["cameras"]:
-    create_subprocess(cameraIP)
+for camera in cam_config["cameras"]:
+    create_subprocess(camera)
 
 # Wait for the main script to finish (e.g., by blocking on an input)
 input("Press Enter to terminate all processes...\n\n")

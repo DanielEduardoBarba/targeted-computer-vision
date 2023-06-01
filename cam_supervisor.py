@@ -6,7 +6,7 @@ import sys
 import subprocess
 
 # Access command-line arguments
-cameraIP = sys.argv[1]
+camera = json.loads(sys.argv[1])
 
 #get motherboard id
 try:
@@ -20,22 +20,23 @@ except subprocess.CalledProcessError:
     exit(1)
 
 
-# Create a dictionary with the payload data
+# Dict with the payload data
 payload = {
     "mid": motherboardID,
-    "cip": cameraIP
+    "cip": camera["ip"]
 }
 
 # Make the GET request with the payload
 response_json = requests.get("http://localhost:4040/check_license/", data=json.dumps(payload), headers={"Content-Type": "application/json"})
 
+print("Checking License...")
 # Check the response_json status code
 if response_json.status_code == 200:
     response = response_json.json()
     if response["license"] == "valid":
-        print("License valid: ", cameraIP)
+        print("Valid: ", camera["ip"])
     else:
-        print("License/IP not valid! EXIT")
+        print("NOT valid: ", camera["ip"])
         exit(1)
 else:
     # Request failed
@@ -44,7 +45,17 @@ else:
 
 
 
-def boxNtag(frame, x,y,w,h, tag, font, color):
+def machineTags(frame, x,y,w,h, tag, font, color):
+    # Draw a rectangle around the detected object
+    cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
+    # Write the tag on the rectangle
+    text_size, _ = cv2.getTextSize(tag, font, 0.9, 2)
+    text_x = x + int((w - text_size[0]) / 2)
+    text_y = y + h + (text_size[1]*2) - 10
+    cv2.putText(frame, tag, (text_x, text_y), font, 0.9, color, 2)
+
+
+def signalTags(frame, x,y,w,h, tag, font, color):
     # Draw a rectangle around the detected object
     cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
     # Write the tag on the rectangle
@@ -53,13 +64,64 @@ def boxNtag(frame, x,y,w,h, tag, font, color):
     text_y = y - 10
     cv2.putText(frame, tag, (text_x, text_y), font, 0.9, color, 2)
 
+def maskBoundaries(frame, b, option):
+    if option == "BGR":
+        return cv2.inRange(frame, (b[0], b[1], b[2]), (b[3], b[4], b[5]))
+    elif option == "HSV":
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        if b[0]<0 or b[3]<0:
+            mask1 = cv2.inRange(hsv, (179+b[0], b[1], b[2]), (179, b[4], b[5]))
+            mask2 = cv2.inRange(hsv, (0, b[1], b[2]), (b[3], b[4], b[5]))
+            return cv2.bitwise_or(mask1, mask2)
+        else:
+            return cv2.inRange(hsv, (b[0], b[1], b[2]), (b[3], b[4], b[5]))
+
+
+def haasLogic(frame, machine, color):            
+    x1,y1,x2,y2 = machine["detect_boundary"]
+    w_min,h_min= machine["minimum_size_detect"]
+
+    #if a signal was detected within the boundary of any machine
+    if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+        if color == 0:
+            signalTags(frame, x1,y1,x2-x1,y2-y1,"RUNNING", cv2.FONT_HERSHEY_SIMPLEX, (0,255,0))
+        elif color == 1:
+            signalTags(frame, x1,y1,x2-x1,y2-y1,"MAINTANENCE", cv2.FONT_HERSHEY_SIMPLEX, (0,255,255))
+        elif color == 2:
+            signalTags(frame,x1,y1,x2-x1,y2-y1,"ERROR", cv2.FONT_HERSHEY_SIMPLEX, (0,0,255))
+    
+
+def fanucLogic(frame, machine, color):
+    x1,y1,x2,y2 = machine["detect_boundary"]
+    w_min,h_min= machine["minimum_size_detect"]
+     #if a signal was detected within the boundary of any machine
+    if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+        if color == 0:
+            signalTags(frame, x1,y1,x2-x1,y2-y1,"STOPPED", cv2.FONT_HERSHEY_SIMPLEX, (0,255,0))
+        elif color == 1:
+            signalTags(frame, x1,y1,x2-x1,y2-y1,"RUNNING", cv2.FONT_HERSHEY_SIMPLEX, (0,255,255))
+        elif color == 2:
+            signalTags(frame,x1,y1,x2-x1,y2-y1,"ERROR", cv2.FONT_HERSHEY_SIMPLEX, (0,0,255))
+        
+
+   
+    
+
+
+
 
 with open("./cam_config.json") as file:
     cam_config = json.load(file)
-    # print(cam_config)
+
+current_cam_machines=[]
+
+# only use the machines relavent to this camera
+for machine in cam_config["machines"]:
+    if machine["assigned_cam"] ==  camera["ip"]:
+        current_cam_machines.append(machine)
 
 #start camera feed
-cam_feed = cv2.VideoCapture(cameraIP)
+cam_feed = cv2.VideoCapture(camera["ip"])
 
 while True:
 
@@ -67,64 +129,73 @@ while True:
 
     # Check if we successfully read a frame
     if not ret:
-        print("Camera ", cameraIP," failed to estabilish feed")
+        print("Camera ", camera["ip"]," failed to estabilish feed")
         break
 
 
     # Create a color specific mask to extract only BGR color pixels
-    b = cam_config["blue_bounds"]
-    g = cam_config["green_bounds"]
-    r = cam_config["red_bounds"]
-    masks=[] #BGR
-    masks.append(cv2.inRange(frame, (b[0], b[1], b[2]), (b[3], b[4], b[5]))) #Blue
-    masks.append(cv2.inRange(frame, (g[0], g[1], g[2]), (g[3], g[4], g[5]))) #Green
-    masks.append(cv2.inRange(frame, (r[0], r[1], r[2]), (r[3], r[4], r[5]))) #Red
+    # note: this determins order of colors
+    masks=[]
+    masks.append(maskBoundaries(frame, cam_config["green_bounds"], cam_config["option"])) #find green signal 
+    masks.append(maskBoundaries(frame, cam_config["yellow_bounds"], cam_config["option"])) #find yellow signal 
+    masks.append(maskBoundaries(frame, cam_config["red_bounds"], cam_config["option"])) #find red signal 
+   
 
 
-    #render machine boundary boxes for machins assigned to this camera
-    for machine in cam_config["machines"]:
-        if machine["assigned_cam"]==cameraIP:
-            x1,y1,x2,y2 = machine["detect_boundary"]
-            boxNtag(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (100,255,100))
+    #render machine boundary boxes for machines assigned to this camera
+    for machine in current_cam_machines:
+        x1,y1,x2,y2 = machine["detect_boundary"]
+        machineTags(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (0,0,0))
 
 
-    #check all 3 colors of BGR spectrum
-    for i in range(len(masks)):
+    #check all 3 colors of GYR spectrum
+    contours=[]
+    for color in range(len(masks)):
 
         # Perform a series of morphological operations to remove noise
-        # masks[i] = cv2.erode(masks[i], None, iterations=1)
-        # masks[i] = cv2.dilate(masks[i], None, iterations=1)
+        masks[color] = cv2.erode(masks[color], None, iterations=cam_config["filter_iterations"])
+        masks[color] = cv2.dilate(masks[color], None, iterations=cam_config["filter_iterations"])
 
         # Find contours of colored objects in the masks[1]
-        contours, _ = cv2.findContours(masks[i].copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        raw_contours, _ = cv2.findContours(masks[color].copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        for cnt in raw_contours:
+            if cv2.contourArea(cnt) > camera["minimum_area_detect"]:
+                contours.append(cnt)
 
-        for currentContour in contours:
+        masks[color] = cv2.resize(masks[color], (700, 350))
 
-            # Get the bounding rectangle of the largest contour
-            x, y, w, h = cv2.boundingRect(currentContour)
-            centerX = x+(w/2)
-            centerY = y+(h/2)
+    for currentContour in contours:
 
-            for machine in cam_config["machines"]:
+        # Get the bounding rectangle of the largest contour
+        x, y, w, h = cv2.boundingRect(currentContour)
+        centerX = x+(w/2)
+        centerY = y+(h/2)
 
-                x1,y1,x2,y2 = machine["detect_boundary"]
-                w_min,h_min= machine["minimum_size_detect"]
-            
-                if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
-                    boxNtag(frame, x,y,w,h,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (0,255,0))
-        # masks[i] = cv2.resize(masks[i], (700, 350))
+        signalTags(frame,x,y,w,h,"?", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
 
-        # print("Checked mask",i)
+        for machine in current_cam_machines:
+            w_min,h_min= machine["minimum_size_detect"]
+            if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+                signalTags(frame,x,y,w,h,"detect", cv2.FONT_HERSHEY_SIMPLEX, (255,0,0))
+    
+            if machine["type"] == "HAAS":
+                haasLogic(frame, machine, color)
+            elif machine["type"] == "FANUC":
+                fanucLogic(frame, machine, color)
 
-    # cv2.imshow("Mask Blue", masks[0])
-    # cv2.imshow("Mask Green", masks[1])
-    # cv2.imshow("Mask Red", masks[2])
+
+
+
+    cv2.imshow("Mask Green", masks[0])
+    cv2.imshow("Mask Yellow", masks[1])
+    cv2.imshow("Mask Red", masks[2])
 
     # Resize the frame and masks[1]
     frame = cv2.resize(frame, (700, 350))
 
     # Display the original frame and the masks[1]
-    camName = "CAM: " + cameraIP
+    camName = "CAM: " + camera["ip"]
     cv2.imshow(camName, frame)
     
 
