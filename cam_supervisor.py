@@ -1,12 +1,22 @@
 import cv2
-import time
 import requests
 import json
 import sys
 import subprocess
+from datetime import datetime
+import time
 
 # Access command-line arguments
 camera = json.loads(sys.argv[1])
+
+with open("./cam_config.json") as file:
+    cam_config = json.load(file)
+
+with open('cam_events.json', 'r') as file:
+    cam_events = json.load(file)
+
+#delay between logs to prevent spamming of data, in seconds
+logBufferDelay = 10
 
 #get motherboard id
 try:
@@ -27,7 +37,7 @@ payload = {
 }
 
 # Make the GET request with the payload
-response_json = requests.get("http://localhost:4040/check_license/", data=json.dumps(payload), headers={"Content-Type": "application/json"})
+response_json = requests.get("http://localhost:4040/check_license", data=json.dumps(payload), headers={"Content-Type": "application/json"})
 
 print("Checking License...")
 # Check the response_json status code
@@ -76,42 +86,85 @@ def maskBoundaries(frame, b, option):
         else:
             return cv2.inRange(hsv, (b[0], b[1], b[2]), (b[3], b[4], b[5]))
 
+def callAPI(machine, status):
+    for machine_event in cam_events["machine_events"]: 
+        if machine_event["id"]==machine["id"] and machine_event["last_event"] != status and logBufferDelay< int(time.time())-int(machine_event["event_time_seconds"]):
+            machine_event["last_event"]=status
+            machine_event["event_time"]=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            machine_event["event_time_seconds"]=int(time.time())
+            payload = {
+                "machine_event": machine_event,
+                "machine": machine
+            }
+
+            response_json=requests.post("http://localhost:4040/singlefeed", data=json.dumps(payload), headers={"Content-Type": "application/json"})
+            # Check the response_json status code
+            if response_json.status_code == 200:
+                response = response_json.json()
+                if response["response"] == "OK!":
+                    
+                    with open('cam_events.json', 'w') as file:
+                        json.dump(cam_events, file)
+
+                    print("Status: ", status," was logged")
+                else:
+                    print("Data wasn't saved to DB properly")
+                
+            else:
+                # Request failed
+                print("Request and process failed with status code: ",response_json.status_code)
+
 
 def haasLogic(frame, machine, color):            
     x1,y1,x2,y2 = machine["detect_boundary"]
     w_min,h_min= machine["minimum_size_detect"]
 
-    #if a signal was detected within the boundary of any machine
+    #if a signal was detected within the boundary of machine
     if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+        status="OFF"
+        status_color=(0,0,0)
+
         if color == 0:
-            signalTags(frame, x1,y1,x2-x1,y2-y1,"RUNNING", cv2.FONT_HERSHEY_SIMPLEX, (0,255,0))
+            status="RUNNING"
+            status_color=(0,255,0)
+            # print("COLOR 0")
         elif color == 1:
-            signalTags(frame, x1,y1,x2-x1,y2-y1,"MAINTANENCE", cv2.FONT_HERSHEY_SIMPLEX, (0,255,255))
+            status="MAINTANENCE"
+            status_color=(0,255,255)
+            # print("COLOR 1")
         elif color == 2:
-            signalTags(frame,x1,y1,x2-x1,y2-y1,"ERROR", cv2.FONT_HERSHEY_SIMPLEX, (0,0,255))
+            status="ERROR"
+            status_color=(0,0,255)
+            # print("COLOR 2")
+        
+        signalTags(frame,x1,y1,x2-x1,y2-y1,status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
+
+        callAPI(machine, status)
+
+
     
 
 def fanucLogic(frame, machine, color):
     x1,y1,x2,y2 = machine["detect_boundary"]
     w_min,h_min= machine["minimum_size_detect"]
-     #if a signal was detected within the boundary of any machine
+     #if a signal was detected within the boundary machine
     if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+        status="OFF"
+        status_color=(0,0,0)
         if color == 0:
-            signalTags(frame, x1,y1,x2-x1,y2-y1,"STOPPED", cv2.FONT_HERSHEY_SIMPLEX, (0,255,0))
+            status="STOPPED"
+            status_color=(0,255,0)
         elif color == 1:
-            signalTags(frame, x1,y1,x2-x1,y2-y1,"RUNNING", cv2.FONT_HERSHEY_SIMPLEX, (0,255,255))
+            status="RUNNING"
+            status_color=(0,255,255)
         elif color == 2:
-            signalTags(frame,x1,y1,x2-x1,y2-y1,"ERROR", cv2.FONT_HERSHEY_SIMPLEX, (0,0,255))
+            status="ERROR"
+            status_color=(0,0,255)
         
+        signalTags(frame,x1,y1,x2-x1,y2-y1, status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
 
-   
-    
+        callAPI(machine, status)
 
-
-
-
-with open("./cam_config.json") as file:
-    cam_config = json.load(file)
 
 current_cam_machines=[]
 
@@ -136,9 +189,9 @@ while True:
     # Create a color specific mask to extract only BGR color pixels
     # note: this determins order of colors
     masks=[]
-    masks.append(maskBoundaries(frame, cam_config["green_bounds"], cam_config["option"])) #find green signal 
-    masks.append(maskBoundaries(frame, cam_config["yellow_bounds"], cam_config["option"])) #find yellow signal 
-    masks.append(maskBoundaries(frame, cam_config["red_bounds"], cam_config["option"])) #find red signal 
+    masks.append(maskBoundaries(frame, cam_config[camera["view"]]["green_bounds"], camera["view"])) #find green signal 
+    masks.append(maskBoundaries(frame, cam_config[camera["view"]]["yellow_bounds"], camera["view"])) #find yellow signal 
+    masks.append(maskBoundaries(frame, cam_config[camera["view"]]["red_bounds"], camera["view"])) #find red signal 
    
 
 
@@ -163,40 +216,39 @@ while True:
             if cv2.contourArea(cnt) > camera["minimum_area_detect"]:
                 contours.append(cnt)
 
+        for currentContour in contours:
+
+            # Mark detected areas (suspected signal)
+            x, y, w, h = cv2.boundingRect(currentContour)
+            centerX = x+(w/2)
+            centerY = y+(h/2)
+
+            signalTags(frame,x,y,w,h,"?", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
+
+            #Pass into specific machine logic
+            for machine in current_cam_machines:
+                if machine["type"] == "HAAS":
+                    haasLogic(frame, machine, color)
+                elif machine["type"] == "FANUC":
+                    fanucLogic(frame, machine, color)
+                            
         masks[color] = cv2.resize(masks[color], (700, 350))
 
-    for currentContour in contours:
-
-        # Get the bounding rectangle of the largest contour
-        x, y, w, h = cv2.boundingRect(currentContour)
-        centerX = x+(w/2)
-        centerY = y+(h/2)
-
-        signalTags(frame,x,y,w,h,"?", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
-
-        for machine in current_cam_machines:
-            w_min,h_min= machine["minimum_size_detect"]
-            if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
-                signalTags(frame,x,y,w,h,"detect", cv2.FONT_HERSHEY_SIMPLEX, (255,0,0))
-    
-            if machine["type"] == "HAAS":
-                haasLogic(frame, machine, color)
-            elif machine["type"] == "FANUC":
-                fanucLogic(frame, machine, color)
 
 
 
 
-    cv2.imshow("Mask Green", masks[0])
-    cv2.imshow("Mask Yellow", masks[1])
-    cv2.imshow("Mask Red", masks[2])
+
+    cv2.imshow("Mask Green "+camera["view"], masks[0])
+    cv2.imshow("Mask Yellow" +camera["view"], masks[1])
+    cv2.imshow("Mask Red "+camera["view"], masks[2])
 
     # Resize the frame and masks[1]
     frame = cv2.resize(frame, (700, 350))
 
     # Display the original frame and the masks[1]
-    camName = "CAM: " + camera["ip"]
-    cv2.imshow(camName, frame)
+    camTitle = "View: " + camera["view"] +" CAM: " + camera["ip"] 
+    cv2.imshow(camTitle, frame)
     
 
     # Break the loop if 'q' is pressed
