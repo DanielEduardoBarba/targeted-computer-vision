@@ -15,7 +15,7 @@ app.get("/",(req,res)=>{
 
 app.get("/check_license",checkLicense)
 
-app.post("/manyfeeds",postMultipleFeeds)
+app.post("/multifeed",postMultipleFeeds)
 app.post("/singlefeed",postSingleFeed)
 
 

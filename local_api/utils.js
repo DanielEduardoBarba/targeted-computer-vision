@@ -25,7 +25,7 @@ export function checkLicense(req,res){
 
 
 export function postMultipleFeeds(req,res){
-    const {updateMany}=req.body
+    const {buffer}=req.body
   
     // console.log("Recieved: ", updateMany)
 
@@ -35,7 +35,7 @@ export function postMultipleFeeds(req,res){
     // })
     // console.log(toUpdateWithTimeStamp)
     
-    db.collection("feeds").insertMany(updateMany)
+   if (buffer.length > 0) db.collection("feeds").insertMany(buffer)
     .then((result,error)=>{
 
         if(error) res.status(400).send({response:"Server error!"})

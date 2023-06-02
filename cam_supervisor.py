@@ -12,11 +12,23 @@ camera = json.loads(sys.argv[1])
 with open("./cam_config.json") as file:
     cam_config = json.load(file)
 
-with open('cam_events.json', 'r') as file:
+with open('./cam_events.json', 'r') as file:
     cam_events = json.load(file)
 
+with open("./server_buffer.json") as file:
+    server_buffer = json.load(file)
+    # print(server_buffer)
+    # time.sleep(5)
+    
+
 #delay between logs to prevent spamming of data, in seconds
-logBufferDelay = 3
+reportBufferDelay = 3
+
+#delay between uploading data, reduces API calls
+uploadBufferDelay = 15
+
+#server ip
+SERVER = "http://localhost:4040"
 
 #get motherboard id
 try:
@@ -37,7 +49,7 @@ payload = {
 }
 
 # Make the GET request with the payload
-response_json = requests.get("http://localhost:4040/check_license", data=json.dumps(payload), headers={"Content-Type": "application/json"})
+response_json = requests.get(SERVER+"/check_license", data=json.dumps(payload), headers={"Content-Type": "application/json"})
 
 print("Checking License...")
 # Check the response_json status code
@@ -104,33 +116,53 @@ def maskBoundaries(frame, b, option):
         else:
             return cv2.inRange(hsv, (b[0], b[1], b[2]), (b[3], b[4], b[5]))
 
-def callAPI(machine, status):
+def reportSignals(machine, status):
     for machine_event in cam_events["machine_events"]: 
-        if machine_event["last_event"] != status and logBufferDelay< int(time.time())-int(machine_event["event_time_seconds"]) and machine_event["id"]==machine["id"]:
+        if machine_event["last_event"] != status and reportBufferDelay< int(time.time())-int(machine_event["event_time_seconds"]) and machine_event["id"]==machine["id"]:
             machine_event["last_event"]=status
             machine_event["event_time"]=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             machine_event["event_time_seconds"]=int(time.time())
-            payload = {
-                "machine_event": machine_event,
-                "machine": machine
+           
+            with open('./cam_events.json', 'w') as file:
+                json.dump(cam_events, file)
+            
+            _machine={
+                "machine_event":machine_event,
+                "machine":machine
             }
+            server_buffer["buffer"].append(_machine)
+            with open('./server_buffer.json', 'w') as file:
+                json.dump(server_buffer, file)
 
-            response_json=requests.post("http://localhost:4040/singlefeed", data=json.dumps(payload), headers={"Content-Type": "application/json"})
-            # Check the response_json status code
-            if response_json.status_code == 200:
-                response = response_json.json()
-                if response["response"] == "OK!":
-                    
-                    with open('cam_events.json', 'w') as file:
-                        json.dump(cam_events, file)
-
-                    print("Status: ", machine["name"] ," ",status," logged")
-                else:
-                    print("Data wasn't saved to DB properly")
+def checkAndCallAPI(server_buffer):
+    print("uploadbuffer: ", uploadBufferDelay)
+    print("time actual: ", int(time.time()))
+    print("UploadAt: ", int(server_buffer["uploadAt"]))
+    print(uploadBufferDelay,"<", int(time.time())-int(server_buffer["uploadAt"]))
+    if uploadBufferDelay < int(time.time())-int(server_buffer["uploadAt"]): 
+        print("Uploading server buffer...")
+        response_json=requests.post(SERVER+"/multifeed", data=json.dumps(server_buffer), headers={"Content-Type": "application/json"})
+        # Check the response_json status code
+        if response_json.status_code == 200:
+            response = response_json.json()
+            if response["response"] == "OK!":
                 
+                server_buffer={
+                    "buffer":[],
+                    "uploadAt":int(time.time())
+                }
+                with open('./server_buffer.json', 'w') as file:
+                    json.dump(server_buffer, file)
+                
+                print("Upload success!")
             else:
-                # Request failed
-                print("Request and process failed with status code: ",response_json.status_code)
+                print("Data wasn't saved to DB properly")
+            
+        else:
+            # Request failed
+            print("Request and process failed with status code: ",response_json.status_code)
+    # else:
+        # print("Made check, nothing to upload...")
 
 
 def haasLogic(frame, machine, color, contours):            
@@ -162,8 +194,8 @@ def haasLogic(frame, machine, color, contours):
                     # print("COLOR 2")
             
                 signalTags(frame,x1,y1,x2-x1,y2-y1,status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
-                callAPI(machine, status)
-    callAPI(machine, "OFF")
+                reportSignals(machine, status)
+    reportSignals(machine, "OFF")
 
     
 
@@ -194,8 +226,8 @@ def fanucLogic(frame, machine, color, contours):
                     status_color=(0,0,255)
 
                 signalTags(frame,x1,y1,x2-x1,y2-y1, status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
-                callAPI(machine, status)
-    callAPI(machine, "OFF")
+                reportSignals(machine, status)
+    reportSignals(machine, "OFF")
 
 
 current_cam_machines=[]
@@ -260,11 +292,14 @@ while True:
     camTitle = "View: " + camera["view"] +" CAM: " + camera["feed_url"] 
     cv2.imshow(camTitle, frame)
     
+    #check if call to API is needed
+    checkAndCallAPI(server_buffer)
 
     # Break the loop if 'q' is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):
         cam_feed.release()
         cv2.destroyAllWindows()
+
 
     
 
