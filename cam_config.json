@@ -6,24 +6,26 @@
         
     },
     "BGR": {
-        "green_bounds":[0, 150, 0, 150, 255, 150],
-        "yellow_bounds":[0, 150, 150, 150, 255, 255],
-        "red_bounds":[0, 0, 150, 150, 150, 255]
+        "green_bounds":[0, 200, 0, 200, 255, 200],
+        "yellow_bounds":[0, 200, 200, 200, 255, 255],
+        "red_bounds":[0, 0, 200, 200, 200, 255]
     },
-    "filter_iterations": 0,
+    "filter_iterations": 5,
     "machines": [
         {"name":"Haas VF2",
         "type":"HAAS",
         "id":"nskqBui23ijeh24",
         "assigned_cam_ip":"192.168.0.200",
         "detect_boundary":[250,250,500,500],
-        "minimum_size_detect":[100,100]},
+        "minimum_size_detect":[100,100],
+        "default_boundary_color":[100,255,100]},
         {"name":"Toyoda",
         "type":"FANUC",
         "id":"aooqpjdhiferg234",
         "assigned_cam_ip":"192.168.0.200", 
         "detect_boundary":[750,750,1000,1000],
-        "minimum_size_detect":[100,100]}
+        "minimum_size_detect":[100,100],
+        "default_boundary_color":[100,255,100]}
     ],
     "cameras":[
         {"name":"Factory 1",
@@ -31,7 +33,6 @@
         "ip":"192.168.0.200",
         "feed_url":"rtsp://admin:admin@192.168.0.200/11",
         "cam_position":["up", "down", "left", "left", "left", "left"],
-        "minimum_area_detect":10000,
         "view":"BGR"}
     ]
 }

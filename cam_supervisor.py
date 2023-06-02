@@ -16,7 +16,7 @@ with open('cam_events.json', 'r') as file:
     cam_events = json.load(file)
 
 #delay between logs to prevent spamming of data, in seconds
-logBufferDelay = 10
+logBufferDelay = 3
 
 #get motherboard id
 try:
@@ -55,21 +55,21 @@ else:
 
 
 # move camera to position
-requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
-print("Homing camera...")
-time.sleep(35)
-print("OK!")
+# requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
+# print("Homing camera...")
+# time.sleep(35)
+# print("OK!")
   
-for movement in camera["cam_position"]:
-    # Make the GET request with the payload
-    print("Moving ", movement,"..." )
-    response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
+# for movement in camera["cam_position"]:
+#     # Make the GET request with the payload
+#     print("Moving ", movement,"..." )
+#     response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
  
-    # Check the response_json status code
-    if response_json.status_code == 200:
-        print("OK!")
-    else:
-        print("Move failed with status code: ",response_json.status_code) 
+#     # Check the response_json status code
+#     if response_json.status_code == 200:
+#         print("OK!")
+#     else:
+#         print("Move failed with status code: ",response_json.status_code) 
 
 
 
@@ -80,7 +80,7 @@ def machineTags(frame, x,y,w,h, tag, font, color):
     text_size, _ = cv2.getTextSize(tag, font, 0.9, 2)
     text_x = x + int((w - text_size[0]) / 2)
     text_y = y + h + (text_size[1]*2) - 10
-    cv2.putText(frame, tag, (text_x, text_y), font, 0.9, color, 2)
+    cv2.putText(frame, tag, (text_x, text_y), font, 1.1, color, 3)
 
 
 def signalTags(frame, x,y,w,h, tag, font, color):
@@ -106,7 +106,7 @@ def maskBoundaries(frame, b, option):
 
 def callAPI(machine, status):
     for machine_event in cam_events["machine_events"]: 
-        if machine_event["id"]==machine["id"] and machine_event["last_event"] != status and logBufferDelay< int(time.time())-int(machine_event["event_time_seconds"]):
+        if machine_event["last_event"] != status and logBufferDelay< int(time.time())-int(machine_event["event_time_seconds"]) and machine_event["id"]==machine["id"]:
             machine_event["last_event"]=status
             machine_event["event_time"]=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             machine_event["event_time_seconds"]=int(time.time())
@@ -124,7 +124,7 @@ def callAPI(machine, status):
                     with open('cam_events.json', 'w') as file:
                         json.dump(cam_events, file)
 
-                    print("Status: ", status," was logged")
+                    print("Status: ", machine["name"] ," ",status," logged")
                 else:
                     print("Data wasn't saved to DB properly")
                 
@@ -133,59 +133,72 @@ def callAPI(machine, status):
                 print("Request and process failed with status code: ",response_json.status_code)
 
 
-def haasLogic(frame, machine, color):            
+def haasLogic(frame, machine, color, contours):            
     x1,y1,x2,y2 = machine["detect_boundary"]
-    w_min,h_min= machine["minimum_size_detect"]
+    min_w,min_h = machine["minimum_size_detect"]
+    for currentContour in contours:
+        # Mark detected areas (suspected signal)
+        x, y, w, h = cv2.boundingRect(currentContour)
+        centerX=x+(w/2)
+        centerY=y+(h/2)
 
-    #if a signal was detected within the boundary of machine
-    if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
         status="OFF"
         status_color=(0,0,0)
-
-        if color == 0:
-            status="RUNNING"
-            status_color=(0,255,0)
-            # print("COLOR 0")
-        elif color == 1:
-            status="MAINTANENCE"
-            status_color=(0,255,255)
-            # print("COLOR 1")
-        elif color == 2:
-            status="ERROR"
-            status_color=(0,0,255)
-            # print("COLOR 2")
         
-        signalTags(frame,x1,y1,x2-x1,y2-y1,status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
-
-        callAPI(machine, status)
-
+        if w > min_w and h > min_h:
+            signalTags(frame,x,y,w,h,"detected", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
+            if x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+                if color == 0:
+                    status="RUNNING"
+                    status_color=(0,255,0)
+                    # print("COLOR 0")
+                elif color == 1:
+                    status="MAINTANENCE"
+                    status_color=(0,255,255)
+                    # print("COLOR 1")
+                elif color == 2:
+                    status="ERROR"
+                    status_color=(0,0,255)
+                    # print("COLOR 2")
+            
+                signalTags(frame,x1,y1,x2-x1,y2-y1,status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
+                callAPI(machine, status)
+    callAPI(machine, "OFF")
 
     
 
-def fanucLogic(frame, machine, color):
+def fanucLogic(frame, machine, color, contours):
     x1,y1,x2,y2 = machine["detect_boundary"]
-    w_min,h_min= machine["minimum_size_detect"]
-     #if a signal was detected within the boundary machine
-    if w > w_min and h > h_min and x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+    min_w,min_h = machine["minimum_size_detect"]
+    for currentContour in contours:
+        # Mark detected areas (suspected signal)
+        x, y, w, h = cv2.boundingRect(currentContour)
+        centerX=x+(w/2)
+        centerY=y+(h/2)
+
         status="OFF"
         status_color=(0,0,0)
-        if color == 0:
-            status="STOPPED"
-            status_color=(0,255,0)
-        elif color == 1:
-            status="RUNNING"
-            status_color=(0,255,255)
-        elif color == 2:
-            status="ERROR"
-            status_color=(0,0,255)
         
-        signalTags(frame,x1,y1,x2-x1,y2-y1, status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
+        if w > min_w and h > min_h:
+            signalTags(frame,x,y,w,h,"detected", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
+            if x1 < centerX and y1 < centerY and x2 > centerX and y2> centerY:
+            
+                if color == 0:
+                    status="STOPPED"
+                    status_color=(0,255,0)
+                elif color == 1:
+                    status="RUNNING"
+                    status_color=(0,255,255)
+                elif color == 2:
+                    status="ERROR"
+                    status_color=(0,0,255)
 
-        callAPI(machine, status)
+                signalTags(frame,x1,y1,x2-x1,y2-y1, status, cv2.FONT_HERSHEY_SIMPLEX, status_color)
+                callAPI(machine, status)
+    callAPI(machine, "OFF")
 
 
 current_cam_machines=[]
-
 # only use the machines relavent to this camera
 for machine in cam_config["machines"]:
     if machine["assigned_cam_ip"] ==  camera["ip"]:
@@ -201,7 +214,6 @@ while True:
     # Check if we successfully read a frame
     if not ret:
         print("Camera ", camera["feed_url"]," failed to estabilish feed")
-        # break
 
 
     # Create a color specific mask to extract only BGR color pixels
@@ -211,13 +223,10 @@ while True:
     masks.append(maskBoundaries(frame, cam_config[camera["view"]]["yellow_bounds"], camera["view"])) #find yellow signal 
     masks.append(maskBoundaries(frame, cam_config[camera["view"]]["red_bounds"], camera["view"])) #find red signal 
    
-
-
     #render machine boundary boxes for machines assigned to this camera
     for machine in current_cam_machines:
         x1,y1,x2,y2 = machine["detect_boundary"]
-        machineTags(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, (0,0,0))
-
+        machineTags(frame, x1,y1,x2-x1,y2-y1,machine["name"], cv2.FONT_HERSHEY_SIMPLEX, machine["default_boundary_color"])
 
     #check all 3 colors of GYR spectrum
     contours=[]
@@ -228,41 +237,24 @@ while True:
         masks[color] = cv2.dilate(masks[color], None, iterations=cam_config["filter_iterations"])
 
         # Find contours of colored objects in the masks[1]
-        raw_contours, _ = cv2.findContours(masks[color].copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        for cnt in raw_contours:
-            if cv2.contourArea(cnt) > camera["minimum_area_detect"]:
-                contours.append(cnt)
+        contours, _ = cv2.findContours(masks[color].copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
 
-        for currentContour in contours:
+        for machine in current_cam_machines:
 
-            # Mark detected areas (suspected signal)
-            x, y, w, h = cv2.boundingRect(currentContour)
-            centerX = x+(w/2)
-            centerY = y+(h/2)
-
-            signalTags(frame,x,y,w,h,"?", cv2.FONT_HERSHEY_SIMPLEX, (255,255,0))
-
-            #Pass into specific machine logic
-            for machine in current_cam_machines:
-                if machine["type"] == "HAAS":
-                    haasLogic(frame, machine, color)
-                elif machine["type"] == "FANUC":
-                    fanucLogic(frame, machine, color)
+            if machine["type"] == "HAAS":
+                haasLogic(frame, machine, color, contours)
+            elif machine["type"] == "FANUC":
+                fanucLogic(frame, machine, color, contours)
                             
         masks[color] = cv2.resize(masks[color], (700, 350))
-
-
-
-
-
 
     cv2.imshow("Mask Green "+camera["view"], masks[0])
     cv2.imshow("Mask Yellow" +camera["view"], masks[1])
     cv2.imshow("Mask Red "+camera["view"], masks[2])
 
     # Resize the frame and masks[1]
-    frame = cv2.resize(frame, (700, 350))
+    frame = cv2.resize(frame, (1000, 500))
 
     # Display the original frame and the masks[1]
     camTitle = "View: " + camera["view"] +" CAM: " + camera["feed_url"] 

@@ -7,7 +7,6 @@ with open("./cam_config.json") as file:
     cam_config = json.load(file)
     # print(cam_config)
 
-
 # List to hold the subprocesses
 subprocesses = []
 
