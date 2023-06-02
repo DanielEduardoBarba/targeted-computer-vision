@@ -20,10 +20,7 @@ with open("./server_buffer.json") as file:
     server_buffer["uploadAt"]=int(time.time())
 
 #delay between logs to prevent spamming of data, in seconds
-reportBufferDelay = 3
-
-#delay between uploading data, reduces API calls
-uploadBufferDelay = 15
+reportBufferDelay = 10
 
 #server ip
 SERVER = "http://localhost:4040"
@@ -133,7 +130,7 @@ def reportSignals(machine, status):
                 json.dump(server_buffer, file)
 
 def checkAndCallAPI(upload_buffer):
-    if uploadBufferDelay < int(time.time())-int(upload_buffer["uploadAt"]) and len(upload_buffer["buffer"])>0: 
+    if camera["upload_frequency"] < int(time.time())-int(upload_buffer["uploadAt"]) and len(upload_buffer["buffer"])>0: 
         print("Uploading log buffer...")
         response_json=requests.post(SERVER+"/multifeed", data=json.dumps(upload_buffer), headers={"Content-Type": "application/json"})
         # Check the response_json status code
@@ -151,7 +148,7 @@ def checkAndCallAPI(upload_buffer):
                 print("Upload success!", upload_buffer)
                 return [], int(time.time())
             else:
-                print("Server rejection: ",response["response"])
+                print("Server rejection: ", response["response"])
             
         else:
             # Request failed
@@ -242,7 +239,6 @@ while True:
     # Check if we successfully read a frame
     if not ret:
         print("Camera ", camera["feed_url"]," failed to estabilish feed")
-
 
     # Create a color specific mask to extract only BGR color pixels
     # note: this determins order of colors
