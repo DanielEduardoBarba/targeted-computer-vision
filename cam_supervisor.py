@@ -17,9 +17,7 @@ with open('./cam_events.json', 'r') as file:
 
 with open("./server_buffer.json") as file:
     server_buffer = json.load(file)
-    # print(server_buffer)
-    # time.sleep(5)
-    
+    server_buffer["uploadAt"]=int(time.time())
 
 #delay between logs to prevent spamming of data, in seconds
 reportBufferDelay = 3
@@ -134,34 +132,32 @@ def reportSignals(machine, status):
             with open('./server_buffer.json', 'w') as file:
                 json.dump(server_buffer, file)
 
-def checkAndCallAPI(server_buffer):
-    print("uploadbuffer: ", uploadBufferDelay)
-    print("time actual: ", int(time.time()))
-    print("UploadAt: ", int(server_buffer["uploadAt"]))
-    print(uploadBufferDelay,"<", int(time.time())-int(server_buffer["uploadAt"]))
-    if uploadBufferDelay < int(time.time())-int(server_buffer["uploadAt"]): 
-        print("Uploading server buffer...")
-        response_json=requests.post(SERVER+"/multifeed", data=json.dumps(server_buffer), headers={"Content-Type": "application/json"})
+def checkAndCallAPI(upload_buffer):
+    if uploadBufferDelay < int(time.time())-int(upload_buffer["uploadAt"]) and len(upload_buffer["buffer"])>0: 
+        print("Uploading log buffer...")
+        response_json=requests.post(SERVER+"/multifeed", data=json.dumps(upload_buffer), headers={"Content-Type": "application/json"})
         # Check the response_json status code
         if response_json.status_code == 200:
             response = response_json.json()
             if response["response"] == "OK!":
                 
-                server_buffer={
+                buffer_update={
                     "buffer":[],
                     "uploadAt":int(time.time())
                 }
                 with open('./server_buffer.json', 'w') as file:
-                    json.dump(server_buffer, file)
+                    json.dump(buffer_update, file)
                 
-                print("Upload success!")
+                print("Upload success!", upload_buffer)
+                return [], int(time.time())
             else:
-                print("Data wasn't saved to DB properly")
+                print("Server rejection: ",response["response"])
             
         else:
             # Request failed
             print("Request and process failed with status code: ",response_json.status_code)
-    # else:
+    else:
+        return upload_buffer["buffer"], int(upload_buffer["uploadAt"])
         # print("Made check, nothing to upload...")
 
 
@@ -292,8 +288,8 @@ while True:
     camTitle = "View: " + camera["view"] +" CAM: " + camera["feed_url"] 
     cv2.imshow(camTitle, frame)
     
-    #check if call to API is needed
-    checkAndCallAPI(server_buffer)
+    #check if call to API is needed, update buffer variable and .json accordingly
+    server_buffer["buffer"],server_buffer["uploadAt"]=checkAndCallAPI(server_buffer)
 
     # Break the loop if 'q' is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):

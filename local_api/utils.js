@@ -44,6 +44,7 @@ export function postMultipleFeeds(req,res){
         console.log("result: ", result)
         console.log("error: ", error)
     })
+    else res.status(200).send({response:"Nothing in payload!"})
 }
 
 export function postSingleFeed(req,res){
