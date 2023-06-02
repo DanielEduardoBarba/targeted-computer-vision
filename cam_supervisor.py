@@ -33,7 +33,7 @@ except subprocess.CalledProcessError:
 # Dict with the payload data
 payload = {
     "mid": motherboardID,
-    "cip": camera["ip"]
+    "feed_url": camera["feed_url"]
 }
 
 # Make the GET request with the payload
@@ -44,14 +44,32 @@ print("Checking License...")
 if response_json.status_code == 200:
     response = response_json.json()
     if response["license"] == "valid":
-        print("Valid: ", camera["ip"])
+        print("Valid: ", camera["feed_url"])
     else:
-        print("NOT valid: ", camera["ip"])
+        print("NOT valid: ", camera["feed_url"])
         exit(1)
 else:
     # Request failed
     print("Request failed with status code: ",response_json.status_code)
     exit(1)
+
+
+# move camera to position
+requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
+print("Homing camera...")
+time.sleep(35)
+print("OK!")
+  
+for movement in camera["cam_position"]:
+    # Make the GET request with the payload
+    print("Moving ", movement,"..." )
+    response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
+ 
+    # Check the response_json status code
+    if response_json.status_code == 200:
+        print("OK!")
+    else:
+        print("Move failed with status code: ",response_json.status_code) 
 
 
 
@@ -170,11 +188,11 @@ current_cam_machines=[]
 
 # only use the machines relavent to this camera
 for machine in cam_config["machines"]:
-    if machine["assigned_cam"] ==  camera["ip"]:
+    if machine["assigned_cam_ip"] ==  camera["ip"]:
         current_cam_machines.append(machine)
 
 #start camera feed
-cam_feed = cv2.VideoCapture(camera["ip"])
+cam_feed = cv2.VideoCapture(camera["feed_url"])
 
 while True:
 
@@ -182,8 +200,8 @@ while True:
 
     # Check if we successfully read a frame
     if not ret:
-        print("Camera ", camera["ip"]," failed to estabilish feed")
-        break
+        print("Camera ", camera["feed_url"]," failed to estabilish feed")
+        # break
 
 
     # Create a color specific mask to extract only BGR color pixels
@@ -247,7 +265,7 @@ while True:
     frame = cv2.resize(frame, (700, 350))
 
     # Display the original frame and the masks[1]
-    camTitle = "View: " + camera["view"] +" CAM: " + camera["ip"] 
+    camTitle = "View: " + camera["view"] +" CAM: " + camera["feed_url"] 
     cv2.imshow(camTitle, frame)
     
 

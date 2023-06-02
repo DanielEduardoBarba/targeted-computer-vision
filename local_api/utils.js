@@ -5,14 +5,14 @@ const client = new MongoClient(service_account.KEY)
 const db =  client.db("cam_manager")
 
 export function checkLicense(req,res){
-    const {mid, cip}=req.body
+    const {mid, feed_url}=req.body
         console.log("Recieved: ", req.body)
 
         db.collection("licenses").find({mid}).toArray()
         .then(licenses=>{
             const license=licenses[0]
 
-            if(license.mid==mid && license.cips.includes(cip) ){
+            if(license.mid==mid && license.feed_urls.includes(feed_url) ){
                 res.status(200).send({license:"valid",response:"OK!"})
             }else{
                 res.status(200).send({license:"invalid",response:"OK!"})
