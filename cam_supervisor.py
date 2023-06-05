@@ -23,7 +23,7 @@ with open("./server_buffer.json") as file:
 reportBufferDelay = 10
 
 #server ip
-SERVER = "http://localhost:4040"
+SERVER = "http://192.168.1.57:80"
 
 #get motherboard id
 try:
@@ -62,21 +62,21 @@ else:
 
 
 # move camera to position
-# requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
-# print("Homing camera...")
-# time.sleep(35)
-# print("OK!")
+requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
+print("Homing camera...")
+time.sleep(35)
+print("OK!")
   
-# for movement in camera["cam_position"]:
-#     # Make the GET request with the payload
-#     print("Moving ", movement,"..." )
-#     response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
+for movement in camera["cam_position"]:
+    # Make the GET request with the payload
+    print("Moving ", movement,"..." )
+    response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
  
-#     # Check the response_json status code
-#     if response_json.status_code == 200:
-#         print("OK!")
-#     else:
-#         print("Move failed with status code: ",response_json.status_code) 
+    # Check the response_json status code
+    if response_json.status_code == 200:
+        print("OK!")
+    else:
+        print("Move failed with status code: ",response_json.status_code) 
 
 
 
