@@ -6,7 +6,7 @@ const app = express()
 app.use(express.json())
 app.use(cors())
 
-const PORT = 4040
+const PORT = 80
 
 app.get("/",(req,res)=>{
     res.send("API works...")
@@ -21,4 +21,6 @@ app.post("/singlefeed",postSingleFeed)
 
 app.listen(PORT, ()=>{
     console.log(`Now listening to PORT ${PORT}...`)
+    console.log("ip: 73.244.238.97")
 })
+
