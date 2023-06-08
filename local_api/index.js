@@ -9,8 +9,11 @@ app.use(cors())
 const PORT = 80
 
 app.get("/",(req,res)=>{
-    res.send("API works...")
-    console.log("API pinged...")
+    res.status(200).send("")
+
+    const timeStamp = new Date.now()
+    console.log("API pinged at: ", timeStamp)
+    console.log("Payload contained: ", req?.body)
 })
 
 app.get("/check_license",checkLicense)
