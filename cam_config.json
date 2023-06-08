@@ -10,7 +10,7 @@
         "yellow_bounds":[0, 200, 200, 200, 255, 255],
         "red_bounds":[0, 0, 200, 200, 200, 255]
     },
-    "filter_iterations": 5,
+    "filter_iterations": 1,
     "machines": [
         {"name":"Kitamura",
         "type":"FANUC",
@@ -26,7 +26,7 @@
         "ip":"192.168.1.244",
         "feed_url":"rtsp://admin:admin@192.168.1.244/11",
         "cam_position":["up", "up","left", "left", "left", "left"],
-        "view":"BGR",
+        "view":"HSV",
         "upload_frequency":15}
     ]
 }

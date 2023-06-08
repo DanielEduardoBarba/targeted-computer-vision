@@ -25,58 +25,58 @@ reportBufferDelay = 10
 #server ip
 SERVER = "http://192.168.1.57:80"
 
-#get motherboard id
-try:
-    # Execute dmidecode command and capture the output
-    output = subprocess.check_output(["sudo","dmidecode", "-s", "baseboard-serial-number"], universal_newlines=True)
-    motherboardID = output.strip()
-    # print("Motherboard *ID* found *", motherboardID,"*")
-except subprocess.CalledProcessError:
-    # Handle any error that may occur
-    print("Failed to retrieve motherboard ID")
-    exit(1)
+# #get motherboard id
+# try:
+#     # Execute dmidecode command and capture the output
+#     output = subprocess.check_output(["sudo","dmidecode", "-s", "baseboard-serial-number"], universal_newlines=True)
+#     motherboardID = output.strip()
+#     # print("Motherboard *ID* found *", motherboardID,"*")
+# except subprocess.CalledProcessError:
+#     # Handle any error that may occur
+#     print("Failed to retrieve motherboard ID")
+#     exit(1)
 
 
-# Dict with the payload data
-payload = {
-    "mid": motherboardID,
-    "feed_url": camera["feed_url"]
-}
+# # Dict with the payload data
+# payload = {
+#     "mid": motherboardID,
+#     "feed_url": camera["feed_url"]
+# }
 
-# Make the GET request with the payload
-response_json = requests.get(SERVER+"/check_license", data=json.dumps(payload), headers={"Content-Type": "application/json"})
+# # Make the GET request with the payload
+# response_json = requests.get(SERVER+"/check_license", data=json.dumps(payload), headers={"Content-Type": "application/json"})
 
-print("Checking License...")
-# Check the response_json status code
-if response_json.status_code == 200:
-    response = response_json.json()
-    if response["license"] == "valid":
-        print("Valid: ", camera["feed_url"])
-    else:
-        print("NOT valid: ", camera["feed_url"])
-        exit(1)
-else:
-    # Request failed
-    print("Request failed with status code: ",response_json.status_code)
-    exit(1)
+# print("Checking License...")
+# # Check the response_json status code
+# if response_json.status_code == 200:
+#     response = response_json.json()
+#     if response["license"] == "valid":
+#         print("Valid: ", camera["feed_url"])
+#     else:
+#         print("NOT valid: ", camera["feed_url"])
+#         exit(1)
+# else:
+#     # Request failed
+#     print("Request failed with status code: ",response_json.status_code)
+#     exit(1)
 
 
-# move camera to position
-requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
-print("Homing camera...")
-time.sleep(35)
-print("OK!")
+# # move camera to position
+# requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act=home&-speed=1", headers={"Content-Type": "application/json"})
+# print("Homing camera...")
+# time.sleep(35)
+# print("OK!")
   
-for movement in camera["cam_position"]:
-    # Make the GET request with the payload
-    print("Moving ", movement,"..." )
-    response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
+# for movement in camera["cam_position"]:
+#     # Make the GET request with the payload
+#     print("Moving ", movement,"..." )
+#     response_json = requests.get("http://admin:admin@"+camera["ip"]+":80/web/cgi-bin/hi3510/ptzctrl.cgi?-step=1&-act="+movement+"&-speed=1", headers={"Content-Type": "application/json"})
  
-    # Check the response_json status code
-    if response_json.status_code == 200:
-        print("OK!")
-    else:
-        print("Move failed with status code: ",response_json.status_code) 
+#     # Check the response_json status code
+#     if response_json.status_code == 200:
+#         print("OK!")
+#     else:
+#         print("Move failed with status code: ",response_json.status_code) 
 
 
 
