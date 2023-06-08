@@ -11,7 +11,7 @@ const PORT = 80
 app.get("/",(req,res)=>{
     res.status(200).send("")
 
-    const timeStamp = new Date.now()
+    const timeStamp = Date.now()
     console.log("API pinged at: ", timeStamp)
     console.log("Payload contained: ", req?.body)
 })
